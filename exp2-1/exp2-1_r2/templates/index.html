@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>實驗系統</title>
+    <style>
+        body {
+            background-color: #5B5B5B;
+            font-family: 'Arial', sans-serif;
+            color: #FFFFFF;
+            text-align: center;
+            display: flex;
+            justify-content: center;  /* 水平居中 */
+            align-items: center;      /* 垂直居中 */
+            height: 100vh;            /* 讓 body 占滿整個視窗 */
+            margin: 0;                /* 取消 margin */
+        }
+        h1, h2 {
+            font-family: 'Algerian', serif;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 20px;
+            padding: 15px 32px;
+            border: none;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(9, 50px);
+            grid-template-rows: repeat(9, 50px);
+            gap: 1px;
+            margin: 30px auto;
+            width: 450px;
+        }
+        .grid-item {
+            width: 50px;
+            height: 50px;
+            border: 1px solid white;
+        }
+        .active {
+            background-color: red;
+        } 
+
+        /* 倒數頁面樣式 */
+        #countdownPage {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;  /* 高度設定為全螢幕 */
+            margin: 0;
+            padding: 0;
+            gap: 20;
+            
+        }
+
+        #countdownText {
+            font-size: 100px;  /* 調整字體大小 */
+            color: white;  /* 文字顏色 */
+            font-weight: bold;  /* 加粗文字 */
+            text-align: center;  /* 文字置中 */
+            margin: 0;
+            /* display: flex;            
+            justify-content: center;   
+            align-items: center;       */
+            height: 80%;           
+            line-height: 80vh; 
+        }
+        #countdownPrompt {
+            font-size: 50px;
+            color: white;
+            text-align: center;  
+            margin: 0;
+            height: 20%;           
+            line-height: 20vh; 
+            /* display: flex;             
+            justify-content: center;  
+            align-items: center;        */
+        } 
+    </style>
+</head>
+<body>
+    <h1>歡迎來到實驗！</h1>
+
+    <div id="startPage">
+        <button class="btn" onclick="startExperiment()">開始</button>
+    </div>
+
+    <div id="videoPage" style="display:none;">
+        <video id="videoPlayer" width="1280" height="800" controls autoplay>
+            <source src="" id="videoSource" type="video/mp4">
+            您的瀏覽器不支援視頻標籤。
+        </video>
+    </div>
+
+    <div id="affectGridPage" style="display:none;">
+        <h2>請標示你現在的心情</h2>
+        <div class="grid-container" id="grid">
+            <!-- 生成的格子會放在這裡 -->
+        </div>
+    </div>
+
+    <div id="videoControlPage" style="display:none;">
+        <h2>控制影片進度</h2>
+        <video id="videoPlayerControl" width="1280" height="800" controls>
+            <source src="" id="videoSourceControl" type="video/mp4">
+            您的瀏覽器不支援視頻標籤。
+        </video>
+    </div>
+
+    <div id="countdownPage" style="display: none;">
+        <div id="countdownPrompt">按下 A 鍵開始倒數</div>
+        <h2 id="countdownText">倒數：5秒</h2>
+    </div>
+
+    <div id="countdownPagee" style="display: none;">
+        <h2 id="countdownText">第一輪結束</h2>
+    </div>
+
+    <script>
+        const videoFiles = []; // 假設從伺服器獲得的影片檔案列表
+        let remainingVideos = [];
+        let currentVideoName = "";
+        let validVideos = []; // 用來記錄每輪選出的負面影片
+        let videoCount = 0; // 記錄觀看的影片數量
+        let roundCount = 0; // 記錄目前是第幾輪
+        let isSubmitting = false;
+
+        // 模擬讀取影片檔案
+        fetch('/videos')  // 假設伺服器返回一個影片檔案列表
+            .then(response => response.json())
+            .then(data => {
+                videoFiles.push(...data);
+                remainingVideos = [...videoFiles];
+            });
+        
+        let videoStartTime = null;
+        let videoEndTime = null;
+
+        function startExperiment() {
+            document.querySelector('h1').style.display = 'none';
+            document.getElementById('affectGridPage').style.display = 'none';
+            document.getElementById('startPage').style.display = 'none'; 
+            document.getElementById('videoPage').style.display = 'none';  
+            document.getElementById('videoControlPage').style.display = 'none';
+            
+            whiteSpaceBeforeStartCountdown();
+        }
+
+
+        function whiteSpaceBeforeStartCountdown(){
+            document.querySelector('h1').style.display = 'none';
+            document.getElementById('affectGridPage').style.display = 'none';
+            document.getElementById('startPage').style.display = 'none'; 
+            document.getElementById('videoPage').style.display = 'none';
+            document.getElementById('videoControlPage').style.display = 'none';
+            
+
+            const countdownPage = document.getElementById('countdownPage');
+            countdownPage.style.display = 'block';
+            const instructionText = document.getElementById('countdownPrompt');
+            instructionText.style.display = 'block';
+            let countdownValue = 3;  // 5 seconds countdown
+            const countdownText = document.getElementById('countdownText');
+            countdownText.textContent = `倒數：${countdownValue}秒`;
+
+            window.addEventListener('keydown',function startCountdownOnA(event) {
+                if (event.key === 'a' || event.key === 'A') {
+                    //instructionText.style.display = 'none'; // Hide instruction text once space is pressed
+                    window.removeEventListener('keydown', startCountdownOnA);
+                    startVideoWithCountdown(countdownValue);
+                }
+            });
+        }
+
+        //
+        function startVideoWithCountdown(countdownValue) {
+            document.querySelector('h1').style.display = 'none';
+            document.getElementById('affectGridPage').style.display = 'none';
+            document.getElementById('startPage').style.display = 'none'; 
+            document.getElementById('videoPage').style.display = 'none';
+            document.getElementById('videoControlPage').style.display = 'none';
+            
+            // 顯示倒數頁面
+            
+            const countdownText = document.getElementById('countdownText');
+            countdownText.textContent = `倒數：${countdownValue}秒`;
+
+            const countdownInterval = setInterval(function() {
+                countdownValue--;
+                countdownText.textContent = `倒數：${countdownValue}秒`;
+
+                if (countdownValue <= 0) {
+                    clearInterval(countdownInterval);  // Clear countdown timer
+                    countdownPage.style.display = 'none';  // Hide countdown page
+                    startNextVideo();  // Start the next video after countdown
+                }
+            }, 1000);  // Update every second
+        }
+        function startNextVideo() {
+            document.querySelector('h1').style.display = 'none';
+            document.getElementById('affectGridPage').style.display = 'none';
+            document.getElementById('startPage').style.display = 'none'; 
+            document.getElementById('videoPage').style.display = 'block';  
+            document.getElementById('videoControlPage').style.display = 'none';
+            if (remainingVideos.length > 0 && videoCount < 15) {
+                const randomVideo = remainingVideos.splice(Math.floor(Math.random() * remainingVideos.length), 1)[0];
+                currentVideoName = randomVideo;
+                const videoPlayer = document.getElementById('videoPlayer');
+                document.getElementById('videoSource').src = randomVideo;
+                videoPlayer.load();
+                videoPlayer.onplay = function() {
+                    videoStartTime = new Date().toISOString();
+                    
+                    fetch('/trigger', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            code: 1
+                        })
+                    }).then(response => response.json())
+                    .then(data => console.log('Video times recorded successfully:', data))
+                    .catch(error => console.error('Error recording video times:', error));
+
+
+                };
+                videoPlayer.oncanplaythrough = function() {
+                    videoPlayer.play();
+                };
+                videoPlayer.onended = function() {
+                    videoEndTime = new Date().toISOString();
+                    recordVideoTimes(videoStartTime, videoEndTime);
+                    showAffectGrid();  // Show affect grid after video ends
+                };
+            } else {
+                roundCount++;
+                videoCount = 0;
+                if (roundCount <= 4) {
+                    startExperimentWithCountdown();
+                } else {
+                    alert('實驗結束');
+                }
+            }
+        }
+        //
+        
+        function recordVideoTimes(startTime, endTime) {
+            // 這裡可以是發送 AJAX 請求，將時間資料存儲到伺服器或其他地方
+            const videoFileName = currentVideoName.split('/').pop().split('.').shift();
+            console.log("Recording video times:", { startTime, endTime });
+            fetch('/submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    videoName: videoFileName,
+                    startTime: startTime,
+                    endTime: endTime
+                })
+            }).then(response => response.json())
+            .then(data => console.log('Video times recorded successfully:', data))
+            .catch(error => console.error('Error recording video times:', error));
+        }
+
+        let redCellIndex = { x: 4, y: 4 }; // 紅色格子的初始位置
+        let gridCells = []; // 儲存所有格子的元素
+        let previousRedCellIndex = null; // 儲存上一個紅色格子的位置
+
+        // 用於移動紅框
+        function handleMoveRedCell(event) {
+            moveRedCell(event);
+        }
+
+        // 用於送出選擇
+        function handleSubmitSelection(event) {
+            if (event.key === 'Enter') {
+                submitSelection();
+                window.removeEventListener('keydown', handleMoveRedCell);
+                window.removeEventListener('keydown', handleSubmitSelection);
+            }
+        }
+
+        function showAffectGrid() {
+            console.log('showAffectGrid function called'); // 確保此函數被呼叫
+            document.getElementById('startPage').style.display = 'none';  // 確保開始頁面也隱藏
+            document.getElementById('videoControlPage').style.display = 'none';
+            document.getElementById('videoPage').style.display = 'none';
+            document.getElementById('affectGridPage').style.display = 'block';
+            
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            
+            gridCells = [];  // 清空格子儲存的陣列
+            for (let i = 0; i < 81; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('grid-item');
+                grid.appendChild(cell);
+                gridCells.push(cell); //儲存格子
+            }
+            //////
+            const emotions = ['喚醒', '愉快', '想睡', '不愉快'];
+            const topLabel = document.createElement('div');
+            topLabel.textContent = emotions[0];  // 上方標示「高唤醒」
+            topLabel.style.position = 'absolute';
+            topLabel.style.top = '300px';
+            topLabel.style.left = '50%';
+            topLabel.style.transform = 'translateX(-50%)';  // 使標籤水平居中
+            grid.appendChild(topLabel);
+            
+            const bottomLabel = document.createElement('div');
+            bottomLabel.textContent = emotions[2];  // 下方標示「困倦」
+            bottomLabel.style.position = 'absolute';
+            bottomLabel.style.bottom = '300px';
+            bottomLabel.style.left = '50%';
+            bottomLabel.style.transform = 'translateX(-50%)';  // 使標籤水平居中
+            grid.appendChild(bottomLabel);
+
+            const leftLabel = document.createElement('div');
+            leftLabel.textContent = emotions[3];  // 左邊標示「不愉快感受」
+            leftLabel.style.position = 'absolute';
+            leftLabel.style.top = '50%';
+            leftLabel.style.left = '930px';
+            leftLabel.style.transform = 'translateY(10%)';  // 使標籤垂直居中
+            grid.appendChild(leftLabel);
+
+            const rightLabel = document.createElement('div');
+            rightLabel.textContent = emotions[1];  // 右邊標示「愉快感受」
+            rightLabel.style.position = 'absolute';
+            rightLabel.style.top = '50%';
+            rightLabel.style.right = '930px';
+            rightLabel.style.transform = 'translateY(10%)';  // 使標籤垂直居中
+            grid.appendChild(rightLabel);
+            //////
+            redCellIndex = { x: 4, y: 4 };  // 確保每次都從中央開始
+            previousRedCellIndex = null;
+            updateRedCellPosition();
+            window.addEventListener('keydown', handleMoveRedCell);
+            window.addEventListener('keydown', handleSubmitSelection);
+        }
+
+        function moveRedCell(event){
+            if(document.getElementById('affectGridPage').style.display === 'block') {
+                const key = event.key;
+                if(key == 'ArrowUp' && redCellIndex.y > 0) {
+                    redCellIndex.y--;
+                }
+                else if (key === 'ArrowDown' && redCellIndex.y < 8) {
+                    redCellIndex.y++;
+                } 
+                else if (key === 'ArrowLeft' && redCellIndex.x > 0) {
+                    redCellIndex.x--;
+                } 
+                else if (key === 'ArrowRight' && redCellIndex.x < 8) {
+                    redCellIndex.x++;
+                }
+                updateRedCellPosition();
+            }
+        }
+
+        function updateRedCellPosition(){
+            console.log("Updating red cell position:", redCellIndex); // 調試：查看紅色格子位置
+            if (previousRedCellIndex !== null) {
+                gridCells[previousRedCellIndex.y * 9 + previousRedCellIndex.x].classList.remove('active');
+            }              
+            const redCell = gridCells[redCellIndex.y * 9 + redCellIndex.x];
+            redCell.classList.add('active');
+            previousRedCellIndex = { ...redCellIndex };
+        }
+
+        function submitSelection() {
+            if (isSubmitting) return;
+            isSubmitting = true;
+            const x = redCellIndex.x - 4 ;
+            const y = 4 - redCellIndex.y ;
+            videoCount++;
+            if (x < 0 && y > 0) {
+                validVideos.push(currentVideoName);  // 記錄符合條件的影片名稱
+            }
+            const videoFileName = currentVideoName.split('/').pop().split('.').shift();
+            // 傳送數據到伺服器
+            fetch('/submit', {
+                method: 'POST',
+                body: JSON.stringify({
+                    videoName: videoFileName, x, y }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(() => {
+                if (videoCount >= 15) {
+                    endExperiment();
+                } else {
+                    startExperiment(); 
+                }
+            }).finally(() => {
+                isSubmitting = false;
+            });
+        }
+        
+        let currentVideoNameForControl = "";
+        async function waitForEnter() {
+            return new Promise(resolve => {
+                function handleKey(event) {
+                    if (event.key === 'Enter') {
+                        window.removeEventListener('keydown', handleKey);  // 移除事件監聽器（防止重複綁）
+                        resolve();  // 結束等待
+                    }
+                }
+                window.addEventListener('keydown', handleKey);
+            });
+        }
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        let keyCooldown = false;
+        function EndExperimentkeyHandler(event) {
+            const videoPlayerControl = document.getElementById('videoPlayerControl');
+
+            if (event.key === 'ArrowLeft') {
+                videoPlayerControl.currentTime = Math.max(0, videoPlayerControl.currentTime - 0.25);
+            } else if (event.key === 'ArrowRight') {
+                videoPlayerControl.currentTime = Math.min(videoPlayerControl.duration, videoPlayerControl.currentTime + 0.25);
+            } else if (event.key === ' ') {
+                if (keyCooldown) return;
+
+                keyCooldown = true;
+                setTimeout(() => {
+                    keyCooldown = false;
+                }, 250);
+
+                if (videoPlayerControl.paused) {
+                    videoPlayerControl.play();
+                } else {
+                    videoPlayerControl.pause();
+                }
+                console.log(videoPlayerControl.paused)
+            }
+        }
+        async function endExperiment() {
+            console.log('endExperiment function called');
+            // 隱藏實驗頁面，顯示控制影片進度的頁面
+            document.getElementById('affectGridPage').style.display = 'none';
+            document.getElementById('startPage').style.display = 'none';  // 確保開始頁面也隱藏
+            document.getElementById('videoPage').style.display = 'none';  // 隱藏影片播放頁面
+            document.getElementById('videoControlPage').style.display = 'block';//
+
+            setTimeout(() => {}, 0.5);
+            keyCooldown = false;
+            const videoPlayerControl = document.getElementById('videoPlayerControl');
+            window.addEventListener('keydown', EndExperimentkeyHandler);
+
+            console.log(validVideos.length)
+            const firstVideo = validVideos.shift(); // FIFO
+            currentVideoNameForControl = firstVideo; // 記錄當前影片名稱
+            document.getElementById('videoSourceControl').src = firstVideo;
+            videoPlayerControl.load();
+            videoPlayerControl.oncanplaythrough = function() {
+                videoPlayerControl.play();
+            };
+
+            await waitForEnter();
+            videoPlayerControl.pause();
+            console.log(videoPlayerControl.paused)
+            window.removeEventListener('keydown', EndExperimentkeyHandler);
+            submitVideoTime(videoPlayerControl.currentTime);
+        }
+            
+
+        function submitVideoTime(currentTime) {
+            console.log('Video time submitted for', currentVideoNameForControl, 'at', currentTime); // 顯示當前影片的時間
+            const videoFileName = currentVideoNameForControl.split('/').pop().split('.').shift();
+            // 傳送影片時間到伺服器
+            fetch('/submit', {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    videoName: videoFileName,  // 當前影片檔名
+                    currentTime  // 當前影片播放時間
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(() => {
+                if (validVideos.length > 0) {
+                    endExperiment();  // 還有影片需要處理，繼續處理下一部
+                } else {
+                    // alert('影片時間已提交，所有有效影片已處理完。');
+                    startExperiment();  // 所有有效影片處理完後，回到 startExperiment
+                }
+            });
+        }
+        function startExperimentWithCountdown() {
+            document.querySelector('h1').style.display = 'none';
+            document.getElementById('affectGridPage').style.display = 'none';
+            document.getElementById('startPage').style.display = 'none'; 
+            document.getElementById('videoPage').style.display = 'none';
+            document.getElementById('videoControlPage').style.display = 'none';
+
+            const countdownPage = document.getElementById('countdownPage');
+            countdownPage.style.display = 'none';  // 隱藏倒數頁面
+
+            const countdownPagee = document.getElementById('countdownPagee');
+            countdownPagee.style.display = 'block';  // 顯示「第一輪結束」頁面
+            const countdownText = document.getElementById('countdownText');
+            countdownText.textContent = `第三輪結束`;  // 顯示結束訊息
+            
+        }
+        // function startExperimentWithCountdown() {
+        //     document.querySelector('h1').style.display = 'none';
+        //     document.getElementById('affectGridPage').style.display = 'none';
+        //     document.getElementById('startPage').style.display = 'none'; 
+        //     document.getElementById('videoPage').style.display = 'none';
+        //     document.getElementById('videoControlPage').style.display = 'none';
+            
+        //     // 顯示倒數頁面
+        //     const countdownPage = document.getElementById('countdownPage');
+        //     countdownPage.style.display = 'block';
+        //     let countdownValue = 5;  // 倒數時間
+
+        //     // 顯示倒數的文字
+        //     const countdownText = document.getElementById('countdownText');
+        //     countdownText.textContent = `第一輪結束，倒數：${countdownValue}秒`;
+
+        //     // 每秒更新倒數
+        //     const countdownInterval = setInterval(function() {
+        //         countdownValue--;
+        //         countdownText.textContent = `第一輪結束，倒數：${countdownValue}秒`;
+                
+        //         if (countdownValue <= 0) {
+        //             clearInterval(countdownInterval);  // 清除倒數計時器
+        //             countdownPage.style.display = 'none';  // 隱藏倒數頁面
+        //             startExperiment();  // 開始實驗
+        //         }
+        //     }, 1000);  // 每秒更新
+        // }
+
+
+    </script>
+</body>
+</html>
